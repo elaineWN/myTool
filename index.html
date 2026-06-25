@@ -107,11 +107,18 @@
         .h-date { font-size: 0.85rem; color: var(--text-light); font-weight: 500; }
         .h-total { font-size: 1.1rem; font-weight: 700; color: var(--text); }
         
+        /* 修改：增加条形图高度以容纳文字 */
         .stacked-bar { 
-            display: flex; height: 12px; border-radius: 6px; overflow: hidden; 
+            display: flex; height: 22px; border-radius: 6px; overflow: hidden; 
             background: #f1f5f9; width: 100%;
         }
-        .bar-seg { height: 100%; transition: width 0.3s; }
+        /* 修改：条形图色块内显示百分比文字 */
+        .bar-seg { 
+            height: 100%; transition: width 0.3s; 
+            display: flex; align-items: center; justify-content: center;
+            font-size: 10px; color: #fff; font-weight: 600;
+            overflow: hidden; white-space: nowrap;
+        }
 
         .h-actions { display: flex; gap: 10px; margin-top: 4px; }
         .h-actions .btn { flex: 1; padding: 10px; font-size: 0.9rem; }
@@ -199,7 +206,7 @@
 <body>
 
 <header>
-    <div class="logo">📊 Asset Manager</div>
+    <div class="logo"> Asset Manager</div>
     <select class="language-selector" id="language-select" onchange="changeLanguage(this.value)">
         <option value="en">English</option>
         <option value="zh">简体中文</option>
@@ -791,18 +798,22 @@ function renderHistory() {
         let allocatedSum = 0;
         typeEntries.forEach(t => allocatedSum += t.total);
         
+        // 修改：在条形图色块内显示百分比（宽度>=5%时显示）
         typeEntries.forEach(t => {
             const pct = (t.total / r.totalAssets) * 100;
-            barHtml += `<div class="bar-seg" style="width:${pct}%; background:${t.color}" title="${t.name}: ${pct.toFixed(1)}%"></div>`;
+            const showText = pct >= 5 ? `${pct.toFixed(0)}%` : '';
+            barHtml += `<div class="bar-seg" style="width:${pct}%; background:${t.color}" title="${t.name}: ${pct.toFixed(1)}%">${showText}</div>`;
         });
         
         const otherAmt = Math.max(0, r.totalAssets - allocatedSum);
         if (otherAmt > 0) {
             const pct = (otherAmt / r.totalAssets) * 100;
-            barHtml += `<div class="bar-seg" style="width:${pct}%; background:#cbd5e1" title="${t('other_label')}: ${pct.toFixed(1)}%"></div>`;
+            const showText = pct >= 5 ? `${pct.toFixed(0)}%` : '';
+            barHtml += `<div class="bar-seg" style="width:${pct}%; background:#cbd5e1; color: #64748b;" title="${t('other_label')}: ${pct.toFixed(1)}%">${showText}</div>`;
         }
 
-        const dateStr = new Date(r.date).toLocaleDateString(currentLang === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric' });
+        // 修改：日期加上年份
+        const dateStr = new Date(r.date).toLocaleDateString(currentLang === 'zh' ? 'zh-CN' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
         div.innerHTML = `
             <div class="h-header">
@@ -926,35 +937,27 @@ function showImportModal() {
 
 function closeModal() { document.getElementById('io-modal').classList.remove('active'); }
 
-// 核心修复：移动端一键复制逻辑
 function copyToClipboard() {
     const textarea = document.getElementById('modal-textarea');
-    
-    // 1. 临时移除 readonly，因为某些移动端浏览器(如iOS Safari)对 readonly 元素的 select() 行为不一致
     textarea.readOnly = false;
     textarea.style.display = 'block';
-    
-    // 2. 聚焦并选中内容
     textarea.focus();
     textarea.select();
-    textarea.setSelectionRange(0, 9999999); // 兼容移动端
+    textarea.setSelectionRange(0, 9999999);
     
     let success = false;
     try {
-        // 3. 在用户点击的同步事件栈中执行复制
         success = document.execCommand('copy');
     } catch (err) {
         console.error('execCommand failed', err);
     }
     
-    // 4. 恢复状态
     textarea.readOnly = true;
     textarea.blur();
     
     if (success) {
         showToast(t('toast_copied'));
     } else {
-        // 降级提示
         showToast(currentLang === 'zh' ? '自动复制失败，请长按文本手动复制' : 'Auto-copy failed. Please long-press to copy.');
     }
 }
@@ -1026,7 +1029,7 @@ function deleteRecord(id) {
     if(currentDetailId === id) switchView('history');
     showToast(t('toast_deleted'));
 }
-function deleteCurrentRecord() { if(currentDetailId) deleteRecord(currentDetailId); }
+function deleteCurrentRecord() { if(currentDetailId) deleteCurrentRecord(currentDetailId); }
 
 // ==================== UTILS ====================
 function formatCurrency(num) {
