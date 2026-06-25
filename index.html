@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Asset Manager</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-active: #1d4ed8;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #0f172a;
+            --text-light: #64748b;
+            --border: #e2e8f0;
+            --danger: #ef4444;
+            --success: #10b981;
+            --radius: 16px;
+            --shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            --nav-height: 60px;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        
+        body { background-color: var(--bg); color: var(--text); padding-bottom: calc(var(--nav-height) + 20px); min-height: 100vh; }
+
+        header {
+            position: sticky; top: 0; z-index: 50;
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px);
+            padding: 16px 20px; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .logo { font-size: 1.1rem; font-weight: 700; color: var(--primary); }
+
+        main { padding: 20px; max-width: 600px; margin: 0 auto; }
+        .view-section { display: none; animation: fadeIn 0.3s ease; }
+        .view-section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .card { background: var(--card-bg); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; margin-bottom: 16px; border: 1px solid var(--border); }
+        .card-title { font-size: 1rem; font-weight: 600; margin-bottom: 16px; color: var(--text); }
+
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; font-size: 0.85rem; font-weight: 500; color: var(--text-light); margin-bottom: 8px; }
+        .form-input, .form-select { 
+            width: 100%; padding: 14px 16px; border: 1px solid var(--border); 
+            border-radius: 12px; font-size: 1rem; background: #fff; 
+            transition: all 0.2s; appearance: none;
+        }
+        .form-input:focus, .form-select:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+
+        .input-row { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+        .input-row .col-name { flex: 2; }
+        .input-row .col-amt { flex: 1.2; }
+        .input-row .col-action { flex: 0 0 44px; display: flex; align-items: center; justify-content: center; }
+
+        .btn { 
+            width: 100%; padding: 14px; border-radius: 12px; border: none; 
+            font-weight: 600; font-size: 1rem; cursor: pointer; 
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            transition: transform 0.1s;
+        }
+        .btn:active { transform: scale(0.98); }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-secondary { background: #f1f5f9; color: var(--text); }
+        .btn-danger { background: #fee2e2; color: var(--danger); }
+        .btn-success { background: #d1fae5; color: var(--success); }
+        .btn-sm { padding: 8px 16px; font-size: 0.9rem; width: auto; }
+        .btn-icon { 
+            width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--border); 
+            background: #fff; color: var(--text-light); display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+        .stat-box { background: var(--card-bg); padding: 12px; border-radius: 12px; border: 1px solid var(--border); text-align: center; }
+        .stat-label { font-size: 0.7rem; text-transform: uppercase; color: var(--text-light); margin-bottom: 4px; }
+        .stat-value { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+        .stat-value.highlight { color: var(--primary); }
+
+        .alloc-item { 
+            background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; 
+            padding: 16px; margin-bottom: 12px; position: relative;
+        }
+        .type-badge { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+        .remove-btn { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 50%; border: none; background: #e2e8f0; color: var(--text-light); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; }
+
+        .history-header {
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;
+        }
+        .history-legend { 
+            display: flex; flex-wrap: wrap; gap: 12px; padding: 16px; 
+            background: var(--card-bg); border-radius: var(--radius); margin-bottom: 16px; 
+            border: 1px solid var(--border); align-items: center;
+        }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--text-light); }
+        .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+        .history-item { 
+            background: var(--card-bg); border-radius: var(--radius); padding: 16px; 
+            margin-bottom: 12px; border: 1px solid var(--border); 
+            display: flex; flex-direction: column; gap: 12px;
+        }
+        .h-header { display: flex; justify-content: space-between; align-items: center; }
+        .h-date { font-size: 0.85rem; color: var(--text-light); font-weight: 500; }
+        .h-total { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+        
+        .stacked-bar { 
+            display: flex; height: 12px; border-radius: 6px; overflow: hidden; 
+            background: #f1f5f9; width: 100%;
+        }
+        .bar-seg { height: 100%; transition: width 0.3s; }
+
+        .h-actions { display: flex; gap: 10px; margin-top: 4px; }
+        .h-actions .btn { flex: 1; padding: 10px; font-size: 0.9rem; }
+
+        .settings-list { display: flex; flex-direction: column; gap: 12px; }
+        .setting-item { 
+            display: flex; align-items: center; gap: 12px; padding: 12px; 
+            background: #f8fafc; border-radius: 12px; border: 1px solid var(--border);
+        }
+        .color-box { width: 32px; height: 32px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1); flex-shrink: 0; }
+        .setting-name { flex: 1; font-weight: 500; font-size: 0.95rem; }
+
+        .detail-chart-wrap { position: relative; height: 280px; width: 100%; margin: 20px 0; }
+        .detail-list-item { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f1f5f9; font-size: 0.95rem; }
+        .detail-sub-item { display: flex; justify-content: space-between; padding: 8px 0 8px 20px; font-size: 0.85rem; color: var(--text-light); border-bottom: none; }
+
+        .bottom-nav {
+            position: fixed; bottom: 0; left: 0; right: 0; height: var(--nav-height);
+            background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(10px);
+            border-top: 1px solid var(--border); display: flex; justify-content: space-around; align-items: center;
+            z-index: 100; padding-bottom: env(safe-area-inset-bottom);
+        }
+        .nav-item { 
+            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            height: 100%; color: var(--text-light); font-size: 0.7rem; gap: 4px; border: none; background: none;
+        }
+        .nav-item svg { width: 24px; height: 24px; fill: currentColor; }
+        .nav-item.active { color: var(--primary); }
+
+        .toast { 
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%) translateY(-100px); 
+            background: #1e293b; color: white; padding: 12px 24px; border-radius: 30px; 
+            font-size: 0.9rem; z-index: 200; transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); white-space: nowrap;
+        }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+
+        .empty-state { text-align: center; padding: 40px 20px; color: var(--text-light); }
+
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.5); z-index: 200;
+            display: none; align-items: center; justify-content: center;
+            padding: 20px;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal {
+            background: var(--card-bg); border-radius: var(--radius);
+            padding: 24px; width: 100%; max-width: 500px;
+            max-height: 80vh; overflow-y: auto;
+            animation: modalIn 0.3s ease;
+        }
+        @keyframes modalIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .modal-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 16px; }
+        .modal-textarea {
+            width: 100%; min-height: 200px; padding: 12px;
+            border: 1px solid var(--border); border-radius: 8px;
+            font-family: monospace; font-size: 0.85rem;
+            margin-bottom: 16px; resize: vertical;
+        }
+        .modal-actions { display: flex; gap: 12px; }
+        .modal-actions .btn { flex: 1; }
+
+        .io-button {
+            padding: 8px 16px; border-radius: 8px; border: 1px solid var(--border);
+            background: var(--card-bg); color: var(--text); font-size: 0.85rem;
+            cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+        }
+        .io-button:hover { background: #f1f5f9; }
+
+        .language-selector {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: var(--card-bg);
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="logo">📊 Asset Manager</div>
+    <select class="language-selector" id="language-select" onchange="changeLanguage(this.value)">
+        <option value="en">English</option>
+        <option value="zh">简体中文</option>
+    </select>
+</header>
+
+<main>
+    <!-- NEW RECORD VIEW -->
+    <div id="view-new-record" class="view-section active">
+        <div class="card">
+            <div class="card-title" data-i18n="step1_title">Step 1: Asset Storage Locations</div>
+            <div id="locations-container"></div>
+            <button class="btn btn-secondary btn-sm" style="margin-top: 8px;" onclick="addLocationRow()" data-i18n="add_location">+ Add Location</button>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div class="stat-label" data-i18n="total_assets">Total Assets</div>
+                <div class="stat-value highlight" id="stat-total">¥0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label" data-i18n="allocated">Allocated</div>
+                <div class="stat-value" id="stat-allocated">¥0</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label" data-i18n="remaining">Remaining</div>
+                <div class="stat-value" id="stat-other" style="color: var(--text-light)">¥0</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title" data-i18n="step2_title">Step 2: Investment Details</div>
+            <div id="allocations-container"></div>
+            
+            <div style="background: #f8fafc; padding: 16px; border-radius: 12px; border: 1px dashed var(--border); margin-top: 16px;">
+                <div class="form-group">
+                    <label class="form-label" data-i18n="investment_type">Investment Type</label>
+                    <select id="alloc-type-select" class="form-select"></select>
+                </div>
+                <div class="input-row" style="margin-bottom: 0;">
+                    <div class="col-name">
+                        <input type="text" id="alloc-fund-name" class="form-input" data-i18n-placeholder="fund_name_placeholder" placeholder="Fund Name (e.g. VOO)">
+                    </div>
+                    <div class="col-amt">
+                        <input type="number" id="alloc-amount" class="form-input" data-i18n-placeholder="amount_placeholder" placeholder="Amount" inputmode="decimal">
+                    </div>
+                </div>
+                <button class="btn btn-primary" style="margin-top: 16px;" onclick="addAllocationEntry()" data-i18n="add_fund">Add Fund Entry</button>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-top: 24px;">
+            <button class="btn btn-primary" style="flex: 2;" onclick="saveRecord()" data-i18n="save_record">Save Record</button>
+            <button class="btn btn-secondary" style="flex: 1;" onclick="resetForm()" data-i18n="reset">Reset</button>
+        </div>
+    </div>
+
+    <!-- HISTORY VIEW -->
+    <div id="view-history" class="view-section">
+        <div class="history-header">
+            <h2 style="font-size: 1.2rem; font-weight: 700;" data-i18n="history">History</h2>
+            <div style="display: flex; gap: 8px;">
+                <button class="io-button" onclick="showExportModal()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    <span data-i18n="export">Export</span>
+                </button>
+                <button class="io-button" onclick="showImportModal()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <span data-i18n="import">Import</span>
+                </button>
+            </div>
+        </div>
+        
+        <div class="history-legend" id="history-legend"></div>
+        <div id="history-list"></div>
+    </div>
+
+    <!-- SETTINGS VIEW -->
+    <div id="view-settings" class="view-section">
+        <div class="card">
+            <div class="card-title" data-i18n="manage_types">Manage Investment Types</div>
+            <div class="settings-list" id="settings-list"></div>
+            
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border);">
+                <div class="input-row">
+                    <div class="col-action">
+                        <input type="color" id="new-type-color" value="#2563eb" style="width: 44px; height: 44px; border: none; background: none; padding: 0;">
+                    </div>
+                    <div class="col-name">
+                        <input type="text" id="new-type-name" class="form-input" data-i18n-placeholder="new_type_name" placeholder="New Type Name">
+                    </div>
+                </div>
+                <button class="btn btn-primary" onclick="addType()" data-i18n="add_type">Add New Type</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DETAIL VIEW -->
+    <div id="view-detail" class="view-section">
+        <button class="btn btn-secondary btn-sm" style="margin-bottom: 16px; width: auto;" onclick="switchView('history')" data-i18n="back">← Back</button>
+        
+        <div class="card">
+            <div style="text-align: center; margin-bottom: 20px;">
+                <div style="font-size: 0.9rem; color: var(--text-light);" id="detail-date">Date</div>
+                <div style="font-size: 2rem; font-weight: 800; color: var(--primary); margin-top: 4px;" id="detail-total">¥0</div>
+            </div>
+
+            <div class="detail-chart-wrap">
+                <canvas id="detail-pie-chart"></canvas>
+            </div>
+
+            <div style="margin-top: 24px;">
+                <div class="card-title" style="font-size: 0.9rem;" data-i18n="locations">Locations</div>
+                <div id="detail-locations"></div>
+            </div>
+
+            <div style="margin-top: 24px;">
+                <div class="card-title" style="font-size: 0.9rem;" data-i18n="allocation_breakdown">Allocation Breakdown</div>
+                <div id="detail-allocation-list"></div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 12px; margin-top: 20px;">
+            <button class="btn btn-secondary" onclick="editCurrentRecord()" data-i18n="edit">Edit</button>
+            <button class="btn btn-danger" onclick="deleteCurrentRecord()" data-i18n="delete">Delete</button>
+        </div>
+    </div>
+</main>
+
+<!-- Import/Export Modal -->
+<div class="modal-overlay" id="io-modal">
+    <div class="modal">
+        <div class="modal-title" id="modal-title">Export Data</div>
+        <textarea class="modal-textarea" id="modal-textarea" readonly></textarea>
+        <div class="modal-actions">
+            <button class="btn btn-secondary" onclick="closeModal()" data-i18n="close">Close</button>
+            <button class="btn btn-primary" id="modal-action-btn" onclick="copyToClipboard()" data-i18n="copy">Copy</button>
+        </div>
+    </div>
+</div>
+
+<!-- Bottom Navigation -->
+<nav class="bottom-nav">
+    <button class="nav-item active" onclick="switchView('new-record')" data-target="new-record">
+        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        <span data-i18n="nav_new">New</span>
+    </button>
+    <button class="nav-item" onclick="switchView('history')" data-target="history">
+        <svg viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+        <span data-i18n="nav_history">History</span>
+    </button>
+    <button class="nav-item" onclick="switchView('settings')" data-target="settings">
+        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        <span data-i18n="nav_config">Config</span>
+    </button>
+</nav>
+
+<div id="toast" class="toast">Action Successful</div>
+
+<script>
+// Register Chart.js plugins
+Chart.register(ChartDataLabels);
+
+// ==================== I18N ====================
+const i18n = {
+    en: {
+        step1_title: "Step 1: Asset Storage Locations",
+        step2_title: "Step 2: Investment Details",
+        add_location: "+ Add Location",
+        total_assets: "Total Assets",
+        allocated: "Allocated",
+        remaining: "Remaining",
+        investment_type: "Investment Type",
+        fund_name_placeholder: "Fund Name (e.g. VOO)",
+        amount_placeholder: "Amount",
+        add_fund: "Add Fund Entry",
+        save_record: "Save Record",
+        reset: "Reset",
+        history: "History",
+        export: "Export",
+        import: "Import",
+        manage_types: "Manage Investment Types",
+        new_type_name: "New Type Name",
+        add_type: "Add New Type",
+        back: "← Back",
+        locations: "Locations",
+        allocation_breakdown: "Allocation Breakdown",
+        edit: "Edit",
+        delete: "Delete",
+        close: "Close",
+        copy: "Copy",
+        nav_new: "New",
+        nav_history: "History",
+        nav_config: "Config",
+        toast_saved: "Saved",
+        toast_updated: "Updated",
+        toast_deleted: "Deleted",
+        toast_editing: "Editing",
+        toast_copied: "Copied to clipboard",
+        toast_import_success: "Import successful",
+        toast_import_error: "Import failed: Invalid data format",
+        toast_select_type: "Please select a type",
+        toast_enter_amount: "Please enter a valid amount",
+        toast_total_required: "Total assets must be greater than 0",
+        toast_delete_confirm: "Are you sure you want to delete this record?",
+        toast_type_delete_confirm: "Are you sure you want to delete this type?",
+        modal_export_title: "Export Data",
+        modal_import_title: "Import Data",
+        modal_import_placeholder: "Paste exported JSON data here...",
+        modal_import_btn: "Import",
+        other_label: "Other"
+    },
+    zh: {
+        step1_title: "步骤1：资产存放位置",
+        step2_title: "步骤2：投资明细",
+        add_location: "+ 添加位置",
+        total_assets: "总资产",
+        allocated: "已分配",
+        remaining: "剩余",
+        investment_type: "投资类型",
+        fund_name_placeholder: "基金名称 (如: 沪深300)",
+        amount_placeholder: "金额",
+        add_fund: "添加基金",
+        save_record: "保存记录",
+        reset: "重置",
+        history: "历史记录",
+        export: "导出",
+        import: "导入",
+        manage_types: "管理投资类型",
+        new_type_name: "新类型名称",
+        add_type: "添加新类型",
+        back: "← 返回",
+        locations: "存放位置",
+        allocation_breakdown: "分配明细",
+        edit: "编辑",
+        delete: "删除",
+        close: "关闭",
+        copy: "复制",
+        nav_new: "新建",
+        nav_history: "历史",
+        nav_config: "配置",
+        toast_saved: "已保存",
+        toast_updated: "已更新",
+        toast_deleted: "已删除",
+        toast_editing: "编辑模式",
+        toast_copied: "已复制到剪贴板",
+        toast_import_success: "导入成功",
+        toast_import_error: "导入失败：数据格式错误",
+        toast_select_type: "请选择类型",
+        toast_enter_amount: "请输入有效金额",
+        toast_total_required: "总资产必须大于0",
+        toast_delete_confirm: "确定删除此记录？",
+        toast_type_delete_confirm: "确定删除此类型？",
+        modal_export_title: "导出数据",
+        modal_import_title: "导入数据",
+        modal_import_placeholder: "请粘贴导出的JSON数据...",
+        modal_import_btn: "导入",
+        other_label: "其他"
+    }
+};
+
+let currentLang = 'en';
+
+function t(key) {
+    return i18n[currentLang][key] || key;
+}
+
+function changeLanguage(lang) {
+    currentLang = lang;
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+    
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+            el.placeholder = t(key + '_placeholder') || t(key);
+        } else {
+            el.textContent = t(key);
+        }
+    });
+    
+    document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+        const key = el.getAttribute('data-i18n-placeholder');
+        el.placeholder = t(key);
+    });
+    
+    if (currentModalMode === 'export') {
+        document.getElementById('modal-title').textContent = t('modal_export_title');
+    } else {
+        document.getElementById('modal-title').textContent = t('modal_import_title');
+    }
+    
+    localStorage.setItem('am_language', lang);
+    
+    if (document.getElementById('view-history').classList.contains('active')) renderHistory();
+    if (document.getElementById('view-settings').classList.contains('active')) renderSettings();
+    if (document.getElementById('view-new-record').classList.contains('active')) renderNewRecordForm();
+    if (document.getElementById('view-detail').classList.contains('active') && currentDetailId) openDetail(currentDetailId);
+}
+
+// ==================== STATE ====================
+const STORAGE_KEY_TYPES = 'am_types_v4';
+const STORAGE_KEY_RECORDS = 'am_records_v4';
+
+let types = [];
+let records = [];
+let currentDetailId = null;
+let editingRecordId = null;
+let detailChartInstance = null;
+let currentModalMode = 'export';
+
+const AVAILABLE_COLORS = [
+    '#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', 
+    '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#14b8a6', 
+    '#6366f1', '#d946ef'
+];
+
+let formLocations = [{ name: '', amount: '' }];
+let formAllocations = []; 
+
+const DEFAULT_TYPES = [
+    { id: 't1', name: 'Conservative', color: '#10b981' },
+    { id: 't2', name: 'S&P 500', color: '#3b82f6' },
+    { id: 't3', name: 'Growth', color: '#f59e0b' },
+    { id: 't4', name: 'Fixed Income', color: '#8b5cf6' },
+    { id: 't5', name: 'Crypto', color: '#ef4444' }
+];
+
+// ==================== INIT ====================
+function init() {
+    const savedLang = localStorage.getItem('am_language');
+    if (savedLang) {
+        currentLang = savedLang;
+        document.getElementById('language-select').value = savedLang;
+    }
+    
+    loadData();
+    renderSettings();
+    renderNewRecordForm();
+    renderHistory();
+    updateI18n();
+}
+
+function updateI18n() { changeLanguage(currentLang); }
+
+function loadData() {
+    const savedTypes = localStorage.getItem(STORAGE_KEY_TYPES);
+    types = savedTypes ? JSON.parse(savedTypes) : [...DEFAULT_TYPES];
+    const savedRecords = localStorage.getItem(STORAGE_KEY_RECORDS);
+    records = savedRecords ? JSON.parse(savedRecords) : [];
+}
+
+function saveData() {
+    localStorage.setItem(STORAGE_KEY_TYPES, JSON.stringify(types));
+    localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(records));
+}
+
+// ==================== NAVIGATION ====================
+function switchView(viewName) {
+    document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    
+    document.getElementById(`view-${viewName}`).classList.add('active');
+    const navBtn = document.querySelector(`.nav-item[data-target="${viewName}"]`);
+    if(navBtn) navBtn.classList.add('active');
+
+    window.scrollTo(0, 0);
+
+    if (viewName === 'history') renderHistory();
+    if (viewName === 'settings') renderSettings();
+    if (viewName === 'new-record' && !editingRecordId) resetForm();
+}
+
+// ==================== SETTINGS ====================
+function getAvailableColor() {
+    const usedColors = new Set(types.map(t => t.color.toLowerCase()));
+    for (const color of AVAILABLE_COLORS) {
+        if (!usedColors.has(color.toLowerCase())) return color;
+    }
+    return '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+}
+
+function renderSettings() {
+    const list = document.getElementById('settings-list');
+    list.innerHTML = '';
+    types.forEach((t, index) => {
+        const div = document.createElement('div');
+        div.className = 'setting-item';
+        div.innerHTML = `
+            <div class="color-box" style="background:${t.color}"></div>
+            <div class="setting-name">${escapeHtml(t.name)}</div>
+            <button class="btn-icon" style="width:36px;height:36px;font-size:1rem;color:var(--danger);border-color:#fecaca;background:#fef2f2;" onclick="deleteType(${index})">×</button>
+        `;
+        list.appendChild(div);
+    });
+    document.getElementById('new-type-color').value = getAvailableColor();
+}
+
+function addType() {
+    const nameInput = document.getElementById('new-type-name');
+    const colorInput = document.getElementById('new-type-color');
+    const name = nameInput.value.trim();
+    const color = colorInput.value;
+
+    if (!name) return showToast('Please enter a name');
+    
+    types.push({ id: 't_' + Date.now(), name, color });
+    saveData();
+    renderSettings();
+    renderNewRecordForm(); 
+    
+    nameInput.value = '';
+    showToast('Type added');
+}
+
+function deleteType(index) {
+    if(!confirm(t('toast_type_delete_confirm'))) return;
+    types.splice(index, 1);
+    saveData();
+    renderSettings();
+    renderNewRecordForm();
+}
+
+// ==================== NEW RECORD ====================
+function renderNewRecordForm() {
+    const locContainer = document.getElementById('locations-container');
+    locContainer.innerHTML = '';
+    formLocations.forEach((loc, idx) => {
+        const row = document.createElement('div');
+        row.className = 'input-row';
+        row.innerHTML = `
+            <div class="col-name">
+                <input type="text" class="form-input" placeholder="Location (e.g. Bank)" 
+                       value="${escapeHtml(loc.name)}" onchange="updateLocation(${idx}, 'name', this.value)">
+            </div>
+            <div class="col-amt">
+                <input type="number" class="form-input" placeholder="¥" inputmode="decimal"
+                       value="${loc.amount}" onchange="updateLocation(${idx}, 'amount', this.value)">
+            </div>
+            <div class="col-action">
+                ${formLocations.length > 1 ? `<button class="btn-icon" onclick="removeLocation(${idx})">×</button>` : ''}
+            </div>
+        `;
+        locContainer.appendChild(row);
+    });
+
+    const allocContainer = document.getElementById('allocations-container');
+    allocContainer.innerHTML = '';
+    formAllocations.forEach((alloc, idx) => {
+        const typeObj = types.find(t => t.id === alloc.typeId);
+        const typeName = typeObj ? typeObj.name : 'Unknown';
+        const typeColor = typeObj ? typeObj.color : '#ccc';
+        
+        const div = document.createElement('div');
+        div.className = 'alloc-item';
+        div.innerHTML = `
+            <button class="remove-btn" onclick="removeAllocation(${idx})">×</button>
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+                <span class="type-badge" style="background:${typeColor}"></span>
+                <strong style="font-size:0.95rem;">${escapeHtml(typeName)}</strong>
+            </div>
+            <div style="display:flex; justify-content:space-between; font-size:0.9rem; color:var(--text-light);">
+                <span>${escapeHtml(alloc.fundName || 'Unnamed')}</span>
+                <span style="font-weight:600; color:var(--text);">${formatCurrency(alloc.amount)}</span>
+            </div>
+        `;
+        allocContainer.appendChild(div);
+    });
+
+    const select = document.getElementById('alloc-type-select');
+    select.innerHTML = '<option value="">' + (currentLang === 'zh' ? '选择类型...' : 'Select Type...') + '</option>';
+    types.forEach(t => {
+        select.innerHTML += `<option value="${t.id}">${escapeHtml(t.name)}</option>`;
+    });
+
+    updateCalculations();
+}
+
+function updateLocation(idx, field, val) { formLocations[idx][field] = val; updateCalculations(); }
+function addLocationRow() { formLocations.push({ name: '', amount: '' }); renderNewRecordForm(); }
+function removeLocation(idx) { formLocations.splice(idx, 1); renderNewRecordForm(); }
+
+function addAllocationEntry() {
+    const typeId = document.getElementById('alloc-type-select').value;
+    const fundName = document.getElementById('alloc-fund-name').value.trim();
+    const amount = parseFloat(document.getElementById('alloc-amount').value);
+
+    if (!typeId) return showToast(t('toast_select_type'));
+    if (!amount || amount <= 0) return showToast(t('toast_enter_amount'));
+
+    formAllocations.push({ typeId, fundName: fundName || 'Fund', amount });
+    
+    document.getElementById('alloc-fund-name').value = '';
+    document.getElementById('alloc-amount').value = '';
+    document.getElementById('alloc-fund-name').focus();
+    
+    renderNewRecordForm();
+}
+
+function removeAllocation(idx) { formAllocations.splice(idx, 1); renderNewRecordForm(); }
+
+function updateCalculations() {
+    const totalAssets = formLocations.reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
+    const typeTotals = {};
+    formAllocations.forEach(a => { typeTotals[a.typeId] = (typeTotals[a.typeId] || 0) + a.amount; });
+    const allocated = Object.values(typeTotals).reduce((a, b) => a + b, 0);
+    const other = Math.max(0, totalAssets - allocated);
+
+    document.getElementById('stat-total').textContent = formatCurrency(totalAssets);
+    document.getElementById('stat-allocated').textContent = formatCurrency(allocated);
+    document.getElementById('stat-other').textContent = formatCurrency(other);
+}
+
+function saveRecord() {
+    const totalAssets = formLocations.reduce((sum, l) => sum + (parseFloat(l.amount) || 0), 0);
+    if (totalAssets <= 0) return showToast(t('toast_total_required'));
+
+    const processedTypes = {};
+    formAllocations.forEach(a => {
+        if (!processedTypes[a.typeId]) {
+            const tInfo = types.find(t => t.id === a.typeId);
+            processedTypes[a.typeId] = { id: a.typeId, name: tInfo ? tInfo.name : 'Unknown', color: tInfo ? tInfo.color : '#ccc', funds: [], total: 0 };
+        }
+        processedTypes[a.typeId].funds.push({ name: a.fundName, amount: a.amount });
+        processedTypes[a.typeId].total += a.amount;
+    });
+
+    const record = {
+        id: editingRecordId || Date.now().toString(),
+        date: new Date().toISOString().split('T')[0],
+        locations: formLocations.filter(l => l.name || parseFloat(l.amount) > 0).map(l => ({ name: l.name || 'Unnamed', amount: parseFloat(l.amount) || 0 })),
+        types: processedTypes,
+        totalAssets: totalAssets
+    };
+
+    if (editingRecordId) {
+        const idx = records.findIndex(r => r.id === editingRecordId);
+        if (idx !== -1) records[idx] = record;
+        editingRecordId = null;
+        showToast(t('toast_updated'));
+    } else {
+        records.unshift(record);
+        showToast(t('toast_saved'));
+    }
+
+    saveData();
+    resetForm();
+    switchView('history');
+}
+
+function resetForm() {
+    editingRecordId = null;
+    formLocations = [{ name: '', amount: '' }];
+    formAllocations = [];
+    renderNewRecordForm();
+}
+
+// ==================== HISTORY & DETAIL ====================
+function renderHistory() {
+    const legendContainer = document.getElementById('history-legend');
+    legendContainer.innerHTML = '';
+    types.forEach(t => {
+        legendContainer.innerHTML += `<div class="legend-item"><div class="legend-dot" style="background:${t.color}"></div><span>${escapeHtml(t.name)}</span></div>`;
+    });
+
+    const container = document.getElementById('history-list');
+    if (records.length === 0) {
+        container.innerHTML = `<div class="empty-state"><h3>${currentLang === 'zh' ? '暂无记录' : 'No Records'}</h3><p>${currentLang === 'zh' ? '添加您的第一条资产记录' : 'Add your first asset record'}</p></div>`;
+        return;
+    }
+
+    container.innerHTML = '';
+    const sorted = [...records].sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    sorted.forEach(r => {
+        const div = document.createElement('div');
+        div.className = 'history-item';
+        div.onclick = () => openDetail(r.id);
+
+        const typeEntries = Object.values(r.types).sort((a, b) => b.total - a.total);
+        let barHtml = '';
+        let allocatedSum = 0;
+        typeEntries.forEach(t => allocatedSum += t.total);
+        
+        typeEntries.forEach(t => {
+            const pct = (t.total / r.totalAssets) * 100;
+            barHtml += `<div class="bar-seg" style="width:${pct}%; background:${t.color}" title="${t.name}: ${pct.toFixed(1)}%"></div>`;
+        });
+        
+        const otherAmt = Math.max(0, r.totalAssets - allocatedSum);
+        if (otherAmt > 0) {
+            const pct = (otherAmt / r.totalAssets) * 100;
+            barHtml += `<div class="bar-seg" style="width:${pct}%; background:#cbd5e1" title="${t('other_label')}: ${pct.toFixed(1)}%"></div>`;
+        }
+
+        const dateStr = new Date(r.date).toLocaleDateString(currentLang === 'zh' ? 'zh-CN' : 'en-US', { month: 'short', day: 'numeric' });
+
+        div.innerHTML = `
+            <div class="h-header">
+                <div class="h-date">${dateStr}</div>
+                <div class="h-total">${formatCurrency(r.totalAssets)}</div>
+            </div>
+            <div class="stacked-bar">${barHtml}</div>
+            <div class="h-actions">
+                <button class="btn btn-secondary" onclick="event.stopPropagation(); editRecord('${r.id}')">${t('edit')}</button>
+                <button class="btn btn-danger" onclick="event.stopPropagation(); deleteRecord('${r.id}')">${t('delete')}</button>
+            </div>
+        `;
+        container.appendChild(div);
+    });
+}
+
+function openDetail(id) {
+    const r = records.find(x => x.id === id);
+    if (!r) return;
+    currentDetailId = id;
+
+    document.getElementById('detail-total').textContent = formatCurrency(r.totalAssets);
+    document.getElementById('detail-date').textContent = new Date(r.date).toLocaleDateString(currentLang === 'zh' ? 'zh-CN' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    const locDiv = document.getElementById('detail-locations');
+    locDiv.innerHTML = r.locations.map(l => `<div class="detail-list-item"><span>${escapeHtml(l.name)}</span><span style="font-weight:600">${formatCurrency(l.amount)}</span></div>`).join('');
+
+    const allocDiv = document.getElementById('detail-allocation-list');
+    let allocHtml = '';
+    const typeEntries = Object.values(r.types).sort((a, b) => b.total - a.total);
+    
+    typeEntries.forEach(t => {
+        const pct = ((t.total / r.totalAssets) * 100).toFixed(1);
+        allocHtml += `
+            <div style="margin-bottom: 16px;">
+                <div class="detail-list-item" style="border-bottom:none; padding-bottom:4px;">
+                    <div style="display:flex; align-items:center; gap:6px;"><span class="type-badge" style="background:${t.color}"></span><strong>${escapeHtml(t.name)}</strong></div>
+                    <div style="text-align:right;"><div style="font-weight:600">${formatCurrency(t.total)}</div><div style="font-size:0.75rem; color:var(--text-light)">${pct}%</div></div>
+                </div>
+                ${t.funds.map(f => `<div class="detail-sub-item"><span>${escapeHtml(f.name)}</span><span>${formatCurrency(f.amount)}</span></div>`).join('')}
+            </div>
+        `;
+    });
+
+    const other = Math.max(0, r.totalAssets - typeEntries.reduce((s,t)=>s+t.total,0));
+    if (other > 0) {
+        const pct = ((other / r.totalAssets) * 100).toFixed(1);
+        allocHtml += `<div class="detail-list-item" style="border-top:1px dashed var(--border); margin-top:8px; padding-top:12px;"><span style="color:var(--text-light)">${t('other_label')} (${currentLang === 'zh' ? '未分配' : 'Unallocated'})</span><div style="text-align:right;"><div style="font-weight:600">${formatCurrency(other)}</div><div style="font-size:0.75rem; color:var(--text-light)">${pct}%</div></div></div>`;
+    }
+    allocDiv.innerHTML = allocHtml;
+
+    renderDetailChart(r);
+    switchView('detail');
+}
+
+function renderDetailChart(record) {
+    const ctx = document.getElementById('detail-pie-chart').getContext('2d');
+    if (detailChartInstance) detailChartInstance.destroy();
+
+    const labels = []; const data = []; const colors = [];
+    Object.values(record.types).forEach(t => { if (t.total > 0) { labels.push(t.name); data.push(t.total); colors.push(t.color); } });
+    const other = Math.max(0, record.totalAssets - data.reduce((a,b)=>a+b,0));
+    if (other > 0) { labels.push(t('other_label')); data.push(other); colors.push('#cbd5e1'); }
+    const total = data.reduce((a, b) => a + b, 0);
+
+    detailChartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: { labels: labels, datasets: [{ data: data, backgroundColor: colors, borderWidth: 2, borderColor: '#fff' }] },
+        options: {
+            responsive: true, maintainAspectRatio: false, cutout: '60%',
+            plugins: {
+                legend: { position: 'bottom', labels: { usePointStyle: true, padding: 15, font: {size: 11} } },
+                datalabels: {
+                    color: '#fff', font: { weight: 'bold', size: 11 },
+                    formatter: (value, context) => {
+                        const label = context.chart.data.labels[context.dataIndex];
+                        const pct = ((value / total) * 100).toFixed(0);
+                        if (pct < 5) return '';
+                        return `${label}\n${pct}%`;
+                    },
+                    anchor: 'center', align: 'center',
+                },
+                tooltip: { callbacks: { label: (ctx) => { const val = ctx.parsed; const pct = ((val/total)*100).toFixed(1); return ` ${ctx.label}: ${formatCurrency(val)} (${pct}%)`; } } }
+            }
+        }
+    });
+}
+
+// ==================== IMPORT/EXPORT ====================
+function showExportModal() {
+    currentModalMode = 'export';
+    const exportData = { version: 2, exportDate: new Date().toISOString(), types: types, records: records };
+    const jsonString = JSON.stringify(exportData, null, 2);
+    
+    document.getElementById('modal-title').textContent = t('modal_export_title');
+    const textarea = document.getElementById('modal-textarea');
+    textarea.value = jsonString;
+    textarea.readOnly = true;
+    
+    document.getElementById('modal-action-btn').textContent = t('copy');
+    document.getElementById('modal-action-btn').className = 'btn btn-primary';
+    document.getElementById('modal-action-btn').onclick = copyToClipboard;
+    
+    document.getElementById('io-modal').classList.add('active');
+}
+
+function showImportModal() {
+    currentModalMode = 'import';
+    document.getElementById('modal-title').textContent = t('modal_import_title');
+    const textarea = document.getElementById('modal-textarea');
+    textarea.value = '';
+    textarea.readOnly = false;
+    textarea.placeholder = t('modal_import_placeholder');
+    
+    document.getElementById('modal-action-btn').textContent = t('modal_import_btn');
+    document.getElementById('modal-action-btn').className = 'btn btn-success';
+    document.getElementById('modal-action-btn').onclick = importData;
+    
+    document.getElementById('io-modal').classList.add('active');
+}
+
+function closeModal() { document.getElementById('io-modal').classList.remove('active'); }
+
+// 核心修复：移动端一键复制逻辑
+function copyToClipboard() {
+    const textarea = document.getElementById('modal-textarea');
+    
+    // 1. 临时移除 readonly，因为某些移动端浏览器(如iOS Safari)对 readonly 元素的 select() 行为不一致
+    textarea.readOnly = false;
+    textarea.style.display = 'block';
+    
+    // 2. 聚焦并选中内容
+    textarea.focus();
+    textarea.select();
+    textarea.setSelectionRange(0, 9999999); // 兼容移动端
+    
+    let success = false;
+    try {
+        // 3. 在用户点击的同步事件栈中执行复制
+        success = document.execCommand('copy');
+    } catch (err) {
+        console.error('execCommand failed', err);
+    }
+    
+    // 4. 恢复状态
+    textarea.readOnly = true;
+    textarea.blur();
+    
+    if (success) {
+        showToast(t('toast_copied'));
+    } else {
+        // 降级提示
+        showToast(currentLang === 'zh' ? '自动复制失败，请长按文本手动复制' : 'Auto-copy failed. Please long-press to copy.');
+    }
+}
+
+function importData() {
+    const textarea = document.getElementById('modal-textarea');
+    const jsonString = textarea.value.trim();
+    
+    if (!jsonString) {
+        showToast(currentLang === 'zh' ? '请输入数据' : 'Please enter data');
+        return;
+    }
+    
+    try {
+        const importDataObj = JSON.parse(jsonString);
+        if (!importDataObj.types || !importDataObj.records) throw new Error('Invalid data format');
+        
+        types = importDataObj.types;
+        
+        const recordDateMap = new Map(records.map(r => [r.date, r]));
+        let updatedCount = 0;
+        let addedCount = 0;
+        
+        importDataObj.records.forEach(r => {
+            if (recordDateMap.has(r.date)) {
+                const idx = records.findIndex(rec => rec.date === r.date);
+                if (idx !== -1) { records[idx] = r; updatedCount++; }
+            } else {
+                records.push(r);
+                addedCount++;
+            }
+        });
+        
+        saveData();
+        closeModal();
+        renderHistory();
+        renderSettings();
+        renderNewRecordForm();
+        
+        let msg = t('toast_import_success') + '! ';
+        if (updatedCount > 0) msg += (currentLang === 'zh' ? `更新${updatedCount}条记录，` : `Updated ${updatedCount} records, `);
+        if (addedCount > 0) msg += (currentLang === 'zh' ? `新增${addedCount}条记录` : `Added ${addedCount} records`);
+        showToast(msg);
+    } catch (err) {
+        showToast(t('toast_import_error'));
+        console.error(err);
+    }
+}
+
+// ==================== EDIT & DELETE ====================
+function editRecord(id) {
+    const r = records.find(x => x.id === id);
+    if (!r) return;
+    editingRecordId = id;
+    formLocations = r.locations.map(l => ({...l, amount: l.amount.toString()}));
+    formAllocations = [];
+    Object.values(r.types).forEach(t => { t.funds.forEach(f => { formAllocations.push({ typeId: t.id, fundName: f.name, amount: f.amount }); }); });
+    renderNewRecordForm();
+    switchView('new-record');
+    showToast(t('toast_editing'));
+}
+function editCurrentRecord() { if(currentDetailId) editRecord(currentDetailId); }
+
+function deleteRecord(id) {
+    if(!confirm(t('toast_delete_confirm'))) return;
+    records = records.filter(r => r.id !== id);
+    saveData();
+    renderHistory();
+    if(currentDetailId === id) switchView('history');
+    showToast(t('toast_deleted'));
+}
+function deleteCurrentRecord() { if(currentDetailId) deleteRecord(currentDetailId); }
+
+// ==================== UTILS ====================
+function formatCurrency(num) {
+    return '¥' + Number(num).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function showToast(msg) {
+    const toastEl = document.getElementById('toast');
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    setTimeout(() => toastEl.classList.remove('show'), 2500);
+}
+
+document.getElementById('io-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeModal();
+});
+
+init();
+</script>
+</body>
+</html>
