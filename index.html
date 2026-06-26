@@ -107,12 +107,10 @@
         .h-date { font-size: 0.85rem; color: var(--text-light); font-weight: 500; }
         .h-total { font-size: 1.1rem; font-weight: 700; color: var(--text); }
         
-        /* 修改：增加条形图高度以容纳文字 */
         .stacked-bar { 
             display: flex; height: 22px; border-radius: 6px; overflow: hidden; 
             background: #f1f5f9; width: 100%;
         }
-        /* 修改：条形图色块内显示百分比文字 */
         .bar-seg { 
             height: 100%; transition: width 0.3s; 
             display: flex; align-items: center; justify-content: center;
@@ -120,8 +118,8 @@
             overflow: hidden; white-space: nowrap;
         }
 
-        .h-actions { display: flex; gap: 10px; margin-top: 4px; }
-        .h-actions .btn { flex: 1; padding: 10px; font-size: 0.9rem; }
+        .h-actions { display: flex; gap: 8px; margin-top: 4px; }
+        .h-actions .btn { flex: 1; padding: 10px; font-size: 0.85rem; }
 
         .settings-list { display: flex; flex-direction: column; gap: 12px; }
         .setting-item { 
@@ -206,7 +204,7 @@
 <body>
 
 <header>
-    <div class="logo"> Asset Manager</div>
+    <div class="logo">📊 Asset Manager</div>
     <select class="language-selector" id="language-select" onchange="changeLanguage(this.value)">
         <option value="en">English</option>
         <option value="zh">简体中文</option>
@@ -404,6 +402,7 @@ const i18n = {
         allocation_breakdown: "Allocation Breakdown",
         edit: "Edit",
         delete: "Delete",
+        clone: "Clone",
         close: "Close",
         copy: "Copy",
         nav_new: "New",
@@ -412,6 +411,7 @@ const i18n = {
         toast_saved: "Saved",
         toast_updated: "Updated",
         toast_deleted: "Deleted",
+        toast_cloned: "Cloned successfully",
         toast_editing: "Editing",
         toast_copied: "Copied to clipboard",
         toast_import_success: "Import successful",
@@ -420,6 +420,7 @@ const i18n = {
         toast_enter_amount: "Please enter a valid amount",
         toast_total_required: "Total assets must be greater than 0",
         toast_delete_confirm: "Are you sure you want to delete this record?",
+        toast_clone_confirm: "Are you sure you want to clone this record? The date will be updated to today.",
         toast_type_delete_confirm: "Are you sure you want to delete this type?",
         modal_export_title: "Export Data",
         modal_import_title: "Import Data",
@@ -451,6 +452,7 @@ const i18n = {
         allocation_breakdown: "分配明细",
         edit: "编辑",
         delete: "删除",
+        clone: "克隆",
         close: "关闭",
         copy: "复制",
         nav_new: "新建",
@@ -459,6 +461,7 @@ const i18n = {
         toast_saved: "已保存",
         toast_updated: "已更新",
         toast_deleted: "已删除",
+        toast_cloned: "克隆成功",
         toast_editing: "编辑模式",
         toast_copied: "已复制到剪贴板",
         toast_import_success: "导入成功",
@@ -467,6 +470,7 @@ const i18n = {
         toast_enter_amount: "请输入有效金额",
         toast_total_required: "总资产必须大于0",
         toast_delete_confirm: "确定删除此记录？",
+        toast_clone_confirm: "确定要克隆此记录吗？日期将更新为今天。",
         toast_type_delete_confirm: "确定删除此类型？",
         modal_export_title: "导出数据",
         modal_import_title: "导入数据",
@@ -798,7 +802,6 @@ function renderHistory() {
         let allocatedSum = 0;
         typeEntries.forEach(t => allocatedSum += t.total);
         
-        // 修改：在条形图色块内显示百分比（宽度>=5%时显示）
         typeEntries.forEach(t => {
             const pct = (t.total / r.totalAssets) * 100;
             const showText = pct >= 5 ? `${pct.toFixed(0)}%` : '';
@@ -812,7 +815,6 @@ function renderHistory() {
             barHtml += `<div class="bar-seg" style="width:${pct}%; background:#cbd5e1; color: #64748b;" title="${t('other_label')}: ${pct.toFixed(1)}%">${showText}</div>`;
         }
 
-        // 修改：日期加上年份
         const dateStr = new Date(r.date).toLocaleDateString(currentLang === 'zh' ? 'zh-CN' : 'en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
         div.innerHTML = `
@@ -822,12 +824,31 @@ function renderHistory() {
             </div>
             <div class="stacked-bar">${barHtml}</div>
             <div class="h-actions">
+                <button class="btn btn-secondary" onclick="event.stopPropagation(); cloneRecord('${r.id}')">${t('clone')}</button>
                 <button class="btn btn-secondary" onclick="event.stopPropagation(); editRecord('${r.id}')">${t('edit')}</button>
                 <button class="btn btn-danger" onclick="event.stopPropagation(); deleteRecord('${r.id}')">${t('delete')}</button>
             </div>
         `;
         container.appendChild(div);
     });
+}
+
+// Clone Record Function
+function cloneRecord(id) {
+    if(!confirm(t('toast_clone_confirm'))) return;
+    
+    const r = records.find(x => x.id === id);
+    if (!r) return;
+    
+    // Deep clone the record
+    const clonedRecord = JSON.parse(JSON.stringify(r));
+    clonedRecord.id = Date.now().toString();
+    clonedRecord.date = new Date().toISOString().split('T')[0];
+    
+    records.unshift(clonedRecord);
+    saveData();
+    renderHistory();
+    showToast(t('toast_cloned'));
 }
 
 function openDetail(id) {
@@ -887,7 +908,10 @@ function renderDetailChart(record) {
             plugins: {
                 legend: { position: 'bottom', labels: { usePointStyle: true, padding: 15, font: {size: 11} } },
                 datalabels: {
-                    color: '#fff', font: { weight: 'bold', size: 11 },
+                    color: '#1e293b', // 修复：改为深色文字
+                    stroke: '#ffffff', // 修复：添加白色描边，防止文字与扇区颜色融合
+                    strokeWidth: 2,
+                    font: { weight: 'bold', size: 11 },
                     formatter: (value, context) => {
                         const label = context.chart.data.labels[context.dataIndex];
                         const pct = ((value / total) * 100).toFixed(0);
@@ -1029,7 +1053,7 @@ function deleteRecord(id) {
     if(currentDetailId === id) switchView('history');
     showToast(t('toast_deleted'));
 }
-function deleteCurrentRecord() { if(currentDetailId) deleteCurrentRecord(currentDetailId); }
+function deleteCurrentRecord() { if(currentDetailId) deleteRecord(currentDetailId); }
 
 // ==================== UTILS ====================
 function formatCurrency(num) {
