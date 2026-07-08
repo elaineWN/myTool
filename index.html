@@ -131,7 +131,15 @@
 
         .detail-chart-wrap { position: relative; height: 280px; width: 100%; margin: 20px 0; }
         .detail-list-item { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #f1f5f9; font-size: 0.95rem; }
-        .detail-sub-item { display: flex; justify-content: space-between; padding: 8px 0 8px 20px; font-size: 0.85rem; color: var(--text-light); border-bottom: none; }
+        
+        /* 修改：支持点击编辑的样式 */
+        .detail-sub-item { 
+            display: flex; justify-content: space-between; align-items: center; 
+            padding: 14px 12px 14px 32px; font-size: 0.95rem; color: var(--text); 
+            cursor: pointer; border-radius: 8px; margin: 0 -12px;
+            transition: background 0.2s;
+        }
+        .detail-sub-item:active { background: #f1f5f9; }
 
         .bottom-nav {
             position: fixed; bottom: 0; left: 0; right: 0; height: var(--nav-height);
@@ -204,7 +212,7 @@
 <body>
 
 <header>
-    <div class="logo">📊 Asset Manager</div>
+    <div class="logo"> Asset Manager</div>
     <select class="language-selector" id="language-select" onchange="changeLanguage(this.value)">
         <option value="en">English</option>
         <option value="zh">简体中文</option>
@@ -354,6 +362,26 @@
     </div>
 </div>
 
+<!-- Edit Fund Modal -->
+<div class="modal-overlay" id="edit-fund-modal">
+    <div class="modal">
+        <div class="modal-title" data-i18n="edit_fund">Edit Fund</div>
+        <div class="form-group">
+            <label class="form-label" data-i18n="fund_name">Fund Name</label>
+            <input type="text" id="edit-fund-name" class="form-input">
+        </div>
+        <div class="form-group">
+            <label class="form-label" data-i18n="amount">Amount</label>
+            <input type="number" id="edit-fund-amount" class="form-input" inputmode="decimal">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-danger" id="edit-fund-delete-btn" data-i18n="delete">Delete</button>
+            <button class="btn btn-secondary" onclick="closeEditFundModal()" data-i18n="cancel">Cancel</button>
+            <button class="btn btn-primary" onclick="saveEditFund()" data-i18n="save">Save</button>
+        </div>
+    </div>
+</div>
+
 <!-- Bottom Navigation -->
 <nav class="bottom-nav">
     <button class="nav-item active" onclick="switchView('new-record')" data-target="new-record">
@@ -405,6 +433,11 @@ const i18n = {
         clone: "Clone",
         close: "Close",
         copy: "Copy",
+        edit_fund: "Edit Fund",
+        fund_name: "Fund Name",
+        amount: "Amount",
+        cancel: "Cancel",
+        save: "Save",
         nav_new: "New",
         nav_history: "History",
         nav_config: "Config",
@@ -422,6 +455,8 @@ const i18n = {
         toast_delete_confirm: "Are you sure you want to delete this record?",
         toast_clone_confirm: "Are you sure you want to clone this record? The date will be updated to today.",
         toast_type_delete_confirm: "Are you sure you want to delete this type?",
+        toast_fund_name_required: "Please enter fund name",
+        toast_fund_amount_invalid: "Please enter valid amount",
         modal_export_title: "Export Data",
         modal_import_title: "Import Data",
         modal_import_placeholder: "Paste exported JSON data here...",
@@ -455,6 +490,11 @@ const i18n = {
         clone: "克隆",
         close: "关闭",
         copy: "复制",
+        edit_fund: "编辑基金",
+        fund_name: "基金名称",
+        amount: "金额",
+        cancel: "取消",
+        save: "保存",
         nav_new: "新建",
         nav_history: "历史",
         nav_config: "配置",
@@ -472,6 +512,8 @@ const i18n = {
         toast_delete_confirm: "确定删除此记录？",
         toast_clone_confirm: "确定要克隆此记录吗？日期将更新为今天。",
         toast_type_delete_confirm: "确定删除此类型？",
+        toast_fund_name_required: "请输入基金名称",
+        toast_fund_amount_invalid: "请输入有效金额",
         modal_export_title: "导出数据",
         modal_import_title: "导入数据",
         modal_import_placeholder: "请粘贴导出的JSON数据...",
@@ -506,8 +548,10 @@ function changeLanguage(lang) {
     
     if (currentModalMode === 'export') {
         document.getElementById('modal-title').textContent = t('modal_export_title');
-    } else {
+    } else if (currentModalMode === 'import') {
         document.getElementById('modal-title').textContent = t('modal_import_title');
+    } else if (currentModalMode === 'edit_fund') {
+        document.getElementById('edit-fund-modal').querySelector('.modal-title').textContent = t('edit_fund');
     }
     
     localStorage.setItem('am_language', lang);
@@ -528,6 +572,11 @@ let currentDetailId = null;
 let editingRecordId = null;
 let detailChartInstance = null;
 let currentModalMode = 'export';
+
+// Edit Fund State
+let editingFundRecordId = null;
+let editingFundTypeId = null;
+let editingFundIndex = null;
 
 const AVAILABLE_COLORS = [
     '#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', 
@@ -559,6 +608,9 @@ function init() {
     renderNewRecordForm();
     renderHistory();
     updateI18n();
+    
+    // Bind delete button for edit fund modal
+    document.getElementById('edit-fund-delete-btn').addEventListener('click', deleteEditFund);
 }
 
 function updateI18n() { changeLanguage(currentLang); }
@@ -833,18 +885,13 @@ function renderHistory() {
     });
 }
 
-// Clone Record Function
 function cloneRecord(id) {
     if(!confirm(t('toast_clone_confirm'))) return;
-    
     const r = records.find(x => x.id === id);
     if (!r) return;
-    
-    // Deep clone the record
     const clonedRecord = JSON.parse(JSON.stringify(r));
     clonedRecord.id = Date.now().toString();
     clonedRecord.date = new Date().toISOString().split('T')[0];
-    
     records.unshift(clonedRecord);
     saveData();
     renderHistory();
@@ -874,7 +921,15 @@ function openDetail(id) {
                     <div style="display:flex; align-items:center; gap:6px;"><span class="type-badge" style="background:${t.color}"></span><strong>${escapeHtml(t.name)}</strong></div>
                     <div style="text-align:right;"><div style="font-weight:600">${formatCurrency(t.total)}</div><div style="font-size:0.75rem; color:var(--text-light)">${pct}%</div></div>
                 </div>
-                ${t.funds.map(f => `<div class="detail-sub-item"><span>${escapeHtml(f.name)}</span><span>${formatCurrency(f.amount)}</span></div>`).join('')}
+                ${t.funds.map((f, fIdx) => `
+                    <div class="detail-sub-item" onclick="openEditFundModal('${r.id}', '${t.id}', ${fIdx})">
+                        <span>${escapeHtml(f.name)}</span>
+                        <div style="display:flex;align-items:center;gap:8px;">
+                            <span style="font-weight:500;">${formatCurrency(f.amount)}</span>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-light);"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        </div>
+                    </div>
+                `).join('')}
             </div>
         `;
     });
@@ -888,6 +943,69 @@ function openDetail(id) {
 
     renderDetailChart(r);
     switchView('detail');
+}
+
+// ==================== EDIT FUND MODAL ====================
+function openEditFundModal(recordId, typeId, fundIndex) {
+    const r = records.find(x => x.id === recordId);
+    if (!r || !r.types[typeId]) return;
+    
+    editingFundRecordId = recordId;
+    editingFundTypeId = typeId;
+    editingFundIndex = fundIndex;
+    currentModalMode = 'edit_fund';
+    
+    const fund = r.types[typeId].funds[fundIndex];
+    document.getElementById('edit-fund-name').value = fund.name;
+    document.getElementById('edit-fund-amount').value = fund.amount;
+    
+    document.getElementById('edit-fund-modal').querySelector('.modal-title').textContent = t('edit_fund');
+    document.getElementById('edit-fund-modal').classList.add('active');
+}
+
+function closeEditFundModal() {
+    document.getElementById('edit-fund-modal').classList.remove('active');
+    editingFundRecordId = null;
+    editingFundTypeId = null;
+    editingFundIndex = null;
+    currentModalMode = 'export';
+}
+
+function saveEditFund() {
+    if (!editingFundRecordId) return;
+    const r = records.find(x => x.id === editingFundRecordId);
+    if (!r || !r.types[editingFundTypeId]) return;
+    
+    const name = document.getElementById('edit-fund-name').value.trim();
+    const amount = parseFloat(document.getElementById('edit-fund-amount').value);
+    
+    if (!name) return showToast(t('toast_fund_name_required'));
+    if (isNaN(amount) || amount < 0) return showToast(t('toast_fund_amount_invalid'));
+    
+    r.types[editingFundTypeId].funds[editingFundIndex].name = name;
+    r.types[editingFundTypeId].funds[editingFundIndex].amount = amount;
+    r.types[editingFundTypeId].total = r.types[editingFundTypeId].funds.reduce((sum, f) => sum + f.amount, 0);
+    
+    saveData();
+    closeEditFundModal();
+    openDetail(editingFundRecordId);
+    showToast(t('toast_updated'));
+}
+
+function deleteEditFund() {
+    if (!editingFundRecordId) return;
+    if (!confirm(t('toast_delete_confirm'))) return;
+    
+    const r = records.find(x => x.id === editingFundRecordId);
+    if (!r || !r.types[editingFundTypeId]) return;
+    
+    r.types[editingFundTypeId].funds.splice(editingFundIndex, 1);
+    r.types[editingFundTypeId].total = r.types[editingFundTypeId].funds.reduce((sum, f) => sum + f.amount, 0);
+    
+    saveData();
+    closeEditFundModal();
+    openDetail(editingFundRecordId);
+    showToast(t('toast_deleted'));
 }
 
 function renderDetailChart(record) {
@@ -908,8 +1026,8 @@ function renderDetailChart(record) {
             plugins: {
                 legend: { position: 'bottom', labels: { usePointStyle: true, padding: 15, font: {size: 11} } },
                 datalabels: {
-                    color: '#1e293b', // 修复：改为深色文字
-                    stroke: '#ffffff', // 修复：添加白色描边，防止文字与扇区颜色融合
+                    color: '#1e293b',
+                    stroke: '#ffffff',
                     strokeWidth: 2,
                     font: { weight: 'bold', size: 11 },
                     formatter: (value, context) => {
@@ -1074,6 +1192,9 @@ function showToast(msg) {
 
 document.getElementById('io-modal').addEventListener('click', function(e) {
     if (e.target === this) closeModal();
+});
+document.getElementById('edit-fund-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeEditFundModal();
 });
 
 init();
